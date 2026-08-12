@@ -46,7 +46,15 @@ impl Pipeline {
 
     pub fn spawn_hotkey_listener(self: &Arc<Self>) -> Result<()> {
         let config = self.config.lock().clone();
-        let (listener, rx) = HotkeyListener::spawn(&config.hotkey, config.hotkey_mode)?;
+        let (listener, rx) = match HotkeyListener::spawn(&config.hotkey, config.hotkey_mode) {
+            Ok(pair) => pair,
+            Err(e) => {
+                log::error!("global hotkey unavailable: {e:#}");
+                let _ = self.app.emit("hotkey-error", e.to_string());
+                self.set_state(TrayState::Error);
+                return Ok(());
+            }
+        };
         let pipeline = Arc::clone(self);
 
         thread::spawn(move || {

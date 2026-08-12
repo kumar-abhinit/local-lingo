@@ -54,6 +54,8 @@ core-foundation = "0.10"
 xkb-type = "0.1"
 arboard = "3"
 x11rb = { version = "0.13", features = ["xtest"] }
+x11-dl = "2.21"
+libc = "0.2"
 
 [features]
 default = ["model-download"]

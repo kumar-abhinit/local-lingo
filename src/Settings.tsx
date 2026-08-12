@@ -44,6 +44,9 @@ export default function Settings() {
     const unsubs = [
       listen<string>("transcription", (e) => setLastTranscript(e.payload)),
       listen("mic-test-request", () => runMicTest()),
+      listen<string>("hotkey-error", (e) =>
+        setStatus(`Hotkey unavailable: ${e.payload}. Change the hotkey below.`),
+      ),
     ];
     return () => {
       unsubs.forEach((p) => p.then((u) => u()));

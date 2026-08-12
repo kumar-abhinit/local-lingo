@@ -3,8 +3,12 @@ mod audio;
 mod config;
 mod hotkey;
 mod injection;
+mod instance;
 mod pipeline;
 mod tray;
+
+#[cfg(target_os = "linux")]
+mod x11_shim;
 
 use crate::asr::{
     download_model, init_engine, list_available_models, model_path_for_tier, transcribe,
@@ -255,12 +259,30 @@ fn init_pipeline(app: &AppHandle, cfg: AppConfig) -> Result<Arc<Pipeline>> {
     Ok(pipeline)
 }
 
+fn should_show_settings_on_launch() -> bool {
+    std::env::args().any(|arg| arg == "--show-settings")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    #[cfg(target_os = "linux")]
+    crate::x11_shim::install_grab_error_handler();
+
     #[cfg(feature = "network-isolation")]
     asr::model_manager::assert_network_isolation();
+
+    let show_settings = should_show_settings_on_launch();
+
+    match instance::acquire(show_settings) {
+        Ok(None) => return,
+        Ok(Some(_guard)) => {}
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    }
 
     let args: Vec<String> = std::env::args().collect();
     if let Some(idx) = args.iter().position(|a| a == "--debug-record") {
@@ -281,6 +303,7 @@ pub fn run() {
             config: Mutex::new(saved_config.clone()),
         })
         .setup(move |app| {
+            instance::register_app_handle(app.handle().clone());
             setup_tray(app.handle())?;
 
             if saved_config.onboarding_complete {
@@ -292,9 +315,10 @@ pub fn run() {
                         log::error!("pipeline init failed: {e:#} — open settings to download model");
                     }
                 }
-            } else {
-                open_settings(app.handle());
             }
+
+            // Always show settings when launched from the app menu / desktop icon.
+            open_settings(app.handle());
 
             Ok(())
         })
@@ -317,6 +341,11 @@ pub fn run() {
             RunEvent::ExitRequested { api, .. } => {
                 api.prevent_exit();
             }
+            RunEvent::Ready { .. } => {
+                if instance::show_settings_requested() {
+                    open_settings(&app);
+                }
+            }
             RunEvent::WindowEvent { label, event, .. } => {
                 if label == "main" {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -327,7 +356,11 @@ pub fn run() {
                     }
                 }
             }
-            _ => {}
+            _ => {
+                if instance::show_settings_requested() {
+                    open_settings(&app);
+                }
+            }
         });
 }
 

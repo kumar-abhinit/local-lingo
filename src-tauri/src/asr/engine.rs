@@ -7,7 +7,16 @@ use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
 };
 
-static ENGINE: OnceLock<Mutex<AsrEngine>> = OnceLock::new();
+static ENGINE: OnceLock<Mutex<Option<LoadedEngine>>> = OnceLock::new();
+
+struct LoadedEngine {
+    model_path: std::path::PathBuf,
+    engine: AsrEngine,
+}
+
+fn engine_slot() -> &'static Mutex<Option<LoadedEngine>> {
+    ENGINE.get_or_init(|| Mutex::new(None))
+}
 
 pub struct AsrEngine {
     context: WhisperContext,
@@ -68,18 +77,27 @@ fn num_cpus() -> i32 {
 }
 
 pub fn init_engine(model_path: &Path) -> Result<()> {
+    let mut slot = engine_slot().lock();
+    if let Some(loaded) = slot.as_ref() {
+        if loaded.model_path == model_path {
+            return Ok(());
+        }
+    }
+
     let engine = AsrEngine::load(model_path)?;
-    ENGINE
-        .set(Mutex::new(engine))
-        .map_err(|_| anyhow!("ASR engine already initialized"))?;
+    *slot = Some(LoadedEngine {
+        model_path: model_path.to_path_buf(),
+        engine,
+    });
     Ok(())
 }
 
 pub fn transcribe(samples: &[f32]) -> Result<String> {
-    let engine = ENGINE
-        .get()
+    let slot = engine_slot().lock();
+    let loaded = slot
+        .as_ref()
         .ok_or_else(|| anyhow!("ASR engine not initialized"))?;
-    engine.lock().transcribe(samples)
+    loaded.engine.transcribe(samples)
 }
 
 /// Ensure samples are 16kHz mono f32 (capture module already provides this).

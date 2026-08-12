@@ -21,12 +21,29 @@ pub struct HotkeyListener {
 
 impl HotkeyListener {
     pub fn spawn(hotkey_str: &str, mode: HotkeyMode) -> Result<(Self, Receiver<HotkeyEvent>)> {
+        #[cfg(target_os = "linux")]
+        {
+            crate::x11_shim::install_grab_error_handler();
+            crate::x11_shim::reset_grab_failed_flag();
+        }
+
         let (tx, rx) = crossbeam_channel::unbounded();
         let manager = GlobalHotKeyManager::new().map_err(|e| anyhow!("hotkey manager: {e}"))?;
         let hotkey = parse_hotkey(hotkey_str)?;
         manager
             .register(hotkey)
             .map_err(|e| anyhow!("failed to register hotkey '{hotkey_str}': {e}"))?;
+
+        #[cfg(target_os = "linux")]
+        {
+            // X11 reports GrabKey conflicts asynchronously via the error handler.
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            if crate::x11_shim::grab_failed() {
+                return Err(anyhow!(
+                    "hotkey '{hotkey_str}' is already used by another app — change it in Settings (e.g. Ctrl+Alt+Space)"
+                ));
+            }
+        }
 
         let stop_flag = Arc::new(AtomicBool::new(false));
         let stop_clone = Arc::clone(&stop_flag);
