@@ -1,0 +1,61 @@
+[package]
+name = "local-lingo"
+version = "0.1.0"
+description = "LocalLingo — fully offline OS-level voice-to-text"
+authors = ["LocalLingo Contributors"]
+edition = "2021"
+
+[lib]
+name = "local_lingo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+cpal = "0.15"
+whisper-rs = { version = "0.16", default-features = false }
+silero-vad-rust = "6"
+# Pin ort to the version silero-vad-rust 6.x expects (rc.13 breaks its API).
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["download-binaries", "std", "ndarray"] }
+global-hotkey = "0.6"
+crossbeam-channel = "0.5"
+ringbuf = "0.4"
+hound = "3.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+dirs = "6"
+sha2 = "0.10"
+hex = "0.4"
+log = "0.4"
+env_logger = "0.11"
+thiserror = "2"
+anyhow = "1"
+parking_lot = "0.12"
+rubato = "0.16"
+reqwest = { version = "0.12", features = ["stream"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+arboard = "3"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Foundation",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.24"
+core-foundation = "0.10"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+xkb-type = "0.1"
+arboard = "3"
+x11rb = { version = "0.13", features = ["xtest"] }
+
+[features]
+default = ["model-download"]
+model-download = ["dep:reqwest"]
+network-isolation = []

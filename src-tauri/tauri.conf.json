@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LocalLingo",
+  "version": "0.1.0",
+  "identifier": "com.locallingo.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "LocalLingo Settings",
+        "width": 640,
+        "height": 720,
+        "visible": false,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "trayIcon": {
+      "iconPath": "icons/32x32.png",
+      "iconAsTemplate": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Offline OS-level voice-to-text",
+    "longDescription": "LocalLingo is a free, fully on-device voice-to-text tool. Press a hotkey anywhere, speak, and transcribed text is typed into the focused input field.",
+    "category": "Utility",
+    "linux": {
+      "deb": {
+        "depends": ["libasound2", "libwebkit2gtk-4.1-0"]
+      }
+    }
+  },
+  "plugins": {}
+}
