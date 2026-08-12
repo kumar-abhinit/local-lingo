@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=LocalLingo
+GenericName=Voice to Text
+Comment=Offline OS-level voice-to-text
+Exec=__LAUNCH_SCRIPT__
+Icon=local-lingo
+Terminal=false
+Categories=Utility;Audio;
+Keywords=voice;dictation;speech;transcription;whisper;offline;local;lingo;
+StartupNotify=true

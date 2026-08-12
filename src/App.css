@@ -103,6 +103,12 @@ button:hover {
   margin-bottom: 0.5rem;
 }
 
+.onboarding {
+  overflow-y: auto;
+  max-height: 100vh;
+  padding-bottom: 1rem;
+}
+
 .onboarding .subtitle {
   color: #888;
 }
@@ -115,14 +121,68 @@ button:hover {
   font-size: 0.75rem;
 }
 
-.steps span {
+.step-pill {
+  margin: 0;
   padding: 0.25rem 0.5rem;
   background: #2a2a2a;
   border-radius: 4px;
+  font-size: inherit;
+  color: inherit;
 }
 
-.steps span.active {
+.step-pill.active {
   background: #3b82f6;
+}
+
+.step-pill.done:not(:disabled) {
+  cursor: pointer;
+}
+
+.step-pill.done:not(:disabled):hover {
+  background: #374151;
+}
+
+.step-pill:disabled:not(.active) {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #333;
+}
+
+.actions button {
+  margin: 0;
+}
+
+button.secondary {
+  background: #444;
+}
+
+button.secondary:hover {
+  background: #555;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.download-block {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+}
+
+.download-block button {
+  margin-top: 0.5rem;
 }
 
 .progress {
