@@ -188,7 +188,8 @@ impl Pipeline {
         validate_samples(&vad_samples)?;
         let start = Instant::now();
 
-        let raw = transcribe(&vad_samples)?;
+        let cfg = self.config.lock().clone();
+        let raw = transcribe(&vad_samples, &cfg)?;
         let text = postprocess(&raw);
         log::info!(
             "transcription ({:.0}ms): {text}",
@@ -211,7 +212,8 @@ impl Pipeline {
         let samples = AudioCapture::record_for_seconds(config.mic_device.as_deref(), seconds)?;
         self.set_state(TrayState::Transcribing);
         validate_samples(&samples)?;
-        let raw = transcribe(&samples)?;
+        let cfg = self.config.lock().clone();
+        let raw = transcribe(&samples, &cfg)?;
         let text = postprocess(&raw);
         self.set_state(TrayState::Idle);
         Ok(text)

@@ -17,4 +17,4 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 cd "$ROOT"
-exec npm run tauri dev
+exec bash "$ROOT/scripts/run.sh"

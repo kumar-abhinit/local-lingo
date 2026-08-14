@@ -2,7 +2,7 @@
 # Install Tauri/Linux build dependencies for LocalLingo (Ubuntu/Debian).
 set -euo pipefail
 
-echo "Installing LocalLingo Linux build dependencies..."
+echo "Installing LocalLingo Linux build dependencies (Debian/Ubuntu)..."
 
 sudo apt-get update
 sudo apt-get install -y \
@@ -22,7 +22,4 @@ sudo apt-get install -y \
   libxkbcommon-dev
 
 echo ""
-echo "Done. Next steps:"
-echo '  source "$HOME/.cargo/env"'
-echo "  cd ~/kumar-abhinit/local-lingo"
-echo "  npm run tauri dev"
+echo "Done. Run: npm start"

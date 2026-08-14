@@ -11,7 +11,7 @@ mod tray;
 mod x11_shim;
 
 use crate::asr::{
-    download_model, init_engine, list_available_models, model_path_for_tier, transcribe,
+    download_model, ensure_transcription_ready, list_available_models, transcribe, AsrStatus,
 };
 use crate::audio::{list_devices, save_wav, AudioCapture};
 use crate::config::{AppConfig, ModelTier};
@@ -53,9 +53,9 @@ fn get_config(state: State<'_, AppState>) -> AppConfig {
 }
 
 #[tauri::command]
-fn set_config(state: State<'_, AppState>, new_config: AppConfig) -> Result<(), String> {
-    crate::config::save_config(&new_config).map_err(|e| e.to_string())?;
-    *state.config.lock() = new_config;
+fn set_config(state: State<'_, AppState>, config: AppConfig) -> Result<(), String> {
+    crate::config::save_config(&config).map_err(|e| e.to_string())?;
+    *state.config.lock() = config;
     Ok(())
 }
 
@@ -111,13 +111,25 @@ async fn debug_record_wav(
 }
 
 #[tauri::command]
+fn get_asr_status(state: State<'_, AppState>) -> AsrStatus {
+    let cfg = state.config.lock().clone();
+    crate::asr::asr_status(&cfg)
+}
+
+#[tauri::command]
 async fn run_benchmark(state: State<'_, AppState>) -> Result<BenchmarkResult, String> {
     let cfg = state.config.lock().clone();
-    ensure_engine(&cfg)?;
+    if !crate::asr::local_model_available(&cfg) {
+        return Err(
+            "Benchmark requires a local model — download one in Settings or skip this step"
+                .into(),
+        );
+    }
+    ensure_transcription_ready(&cfg).map_err(|e| e.to_string())?;
 
     let samples = generate_test_tone(10.0);
     let start = std::time::Instant::now();
-    let _ = transcribe(&samples).map_err(|e| e.to_string())?;
+    let _ = transcribe(&samples, &cfg).map_err(|e| e.to_string())?;
     let elapsed_ms = start.elapsed().as_millis() as u64;
 
     Ok(BenchmarkResult {
@@ -128,13 +140,13 @@ async fn run_benchmark(state: State<'_, AppState>) -> Result<BenchmarkResult, St
 
 #[tauri::command]
 async fn mic_test_transcribe(state: State<'_, AppState>, seconds: f32) -> Result<String, String> {
-    use crate::asr::{postprocess, transcribe, validate_samples};
+    use crate::asr::{postprocess, validate_samples};
     let cfg = state.config.lock().clone();
-    ensure_engine(&cfg)?;
+    ensure_transcription_ready(&cfg).map_err(|e| e.to_string())?;
     let samples = AudioCapture::record_for_seconds(cfg.mic_device.as_deref(), seconds)
         .map_err(|e| e.to_string())?;
     validate_samples(&samples).map_err(|e| e.to_string())?;
-    let raw = transcribe(&samples).map_err(|e| e.to_string())?;
+    let raw = transcribe(&samples, &cfg).map_err(|e| e.to_string())?;
     Ok(postprocess(&raw))
 }
 
@@ -156,23 +168,6 @@ fn complete_onboarding(app: AppHandle, state: State<'_, AppState>) -> Result<(),
 struct BenchmarkResult {
     elapsed_ms: u64,
     recommended_tier: ModelTier,
-}
-
-fn ensure_engine(cfg: &AppConfig) -> Result<(), String> {
-    let path = cfg
-        .model_path
-        .as_ref()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| model_path_for_tier(cfg.model_tier));
-
-    if !path.exists() {
-        return Err(format!(
-            "Model not found at {} — download via onboarding",
-            path.display()
-        ));
-    }
-
-    init_engine(&path).map_err(|e| e.to_string())
 }
 
 fn recommend_tier(elapsed_ms: u64) -> ModelTier {
@@ -253,7 +248,7 @@ fn open_settings(app: &AppHandle) {
 }
 
 fn init_pipeline(app: &AppHandle, cfg: AppConfig) -> Result<Arc<Pipeline>> {
-    ensure_engine(&cfg).map_err(|e| anyhow!(e))?;
+    ensure_transcription_ready(&cfg).map_err(|e| anyhow!(e))?;
     let pipeline = Arc::new(Pipeline::new(app.clone(), cfg)?);
     pipeline.spawn_hotkey_listener()?;
     Ok(pipeline)
@@ -331,6 +326,7 @@ pub fn run() {
             get_permissions,
             test_injection,
             debug_record_wav,
+            get_asr_status,
             run_benchmark,
             mic_test_transcribe,
             complete_onboarding,

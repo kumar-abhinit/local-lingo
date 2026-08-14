@@ -38,6 +38,7 @@ export default function Onboarding() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [permissions, setPermissions] = useState<PermissionStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState("large-v3-turbo");
+  const [groqKeyDraft, setGroqKeyDraft] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [downloadPct, setDownloadPct] = useState<number | null>(null);
   const [benchmark, setBenchmark] = useState<BenchmarkResult | null>(null);
@@ -55,6 +56,9 @@ export default function Onboarding() {
     invoke<PermissionStatus>("get_permissions")
       .then(setPermissions)
       .catch(console.error);
+    invoke<{ groq_api_key: string | null }>("get_config")
+      .then((cfg) => setGroqKeyDraft(cfg.groq_api_key ?? ""))
+      .catch(console.error);
 
     const unlisten = listen<DownloadProgress>("download-progress", (e) => {
       const { downloaded, total } = e.payload;
@@ -69,13 +73,24 @@ export default function Onboarding() {
 
   const selectedModelInfo = models.find((m) => m.id === selectedModel);
   const anyModelCached = models.some((m) => m.cached);
+  const groqConfigured = groqKeyDraft.trim().length > 0;
+  const canTranscribe = anyModelCached || groqConfigured;
+
+  async function saveGroqKey() {
+    setError("");
+    const trimmed = groqKeyDraft.trim();
+    const cfg = await invoke<Record<string, unknown>>("get_config");
+    await invoke("set_config", {
+      config: { ...cfg, groq_api_key: trimmed || null },
+    });
+  }
 
   async function ensureModelConfigured(): Promise<boolean> {
     const cached =
       models.find((m) => m.id === selectedModel && m.cached) ??
       models.find((m) => m.cached);
     if (!cached) {
-      return false;
+      return groqConfigured;
     }
     const path = await invoke<string>("download_model_cmd", { modelId: cached.id });
     const cfg = await invoke<Record<string, unknown>>("get_config");
@@ -130,6 +145,10 @@ export default function Onboarding() {
   async function runBenchmark() {
     setError("");
     try {
+      if (!anyModelCached) {
+        setError("Benchmark requires a local model — download one or skip to Mic test.");
+        return;
+      }
       if (!(await ensureModelConfigured())) {
         setError("Download a speech model before running the benchmark.");
         return;
@@ -148,8 +167,9 @@ export default function Onboarding() {
   async function runMicTest() {
     setError("");
     try {
-      if (!(await ensureModelConfigured())) {
-        setError("Download a speech model before running the mic test.");
+      await saveGroqKey();
+      if (!(await ensureModelConfigured()) && !groqConfigured) {
+        setError("Download a model or add a Groq API key before running the mic test.");
         return;
       }
       const text = await invoke<string>("mic_test_transcribe", { seconds: 3 });
@@ -160,8 +180,38 @@ export default function Onboarding() {
   }
 
   async function finish() {
+    await saveGroqKey();
     await invoke("complete_onboarding");
     window.location.reload();
+  }
+
+  function groqKeyBlock() {
+    return (
+      <div className="download-block">
+        <p className="hint">
+          Optional: use Groq&apos;s free Whisper API until you download a local model.
+          Audio is sent to Groq only while no local model is installed.
+        </p>
+        <label>
+          Groq API key
+          <input
+            type="password"
+            value={groqKeyDraft}
+            placeholder="gsk_…"
+            onChange={(e) => setGroqKeyDraft(e.target.value)}
+          />
+        </label>
+        <p className="hint">
+          Free key at{" "}
+          <a href="https://console.groq.com" target="_blank" rel="noreferrer">
+            console.groq.com
+          </a>
+        </p>
+        {groqConfigured && !anyModelCached && (
+          <p className="ok">Cloud transcription ready — you can skip download for now.</p>
+        )}
+      </div>
+    );
   }
 
   function modelDownloadBlock(hint?: string) {
@@ -197,7 +247,7 @@ export default function Onboarding() {
               ? "Downloaded"
               : "Download model"}
         </button>
-        {anyModelCached && <p className="ok">Model ready — you can continue.</p>}
+        {anyModelCached && <p className="ok">Local model ready.</p>}
       </div>
     );
   }
@@ -206,7 +256,7 @@ export default function Onboarding() {
     <div className="panel onboarding">
       <h1>Welcome to LocalLingo</h1>
       <p className="subtitle">
-        100% on-device voice-to-text. No cloud. No telemetry.
+        Voice-to-text on your desktop. Offline after model download, or start instantly with Groq.
       </p>
 
       <div className="steps">
@@ -235,7 +285,7 @@ export default function Onboarding() {
           <ul>
             <li>Default hotkey: Ctrl+Shift+Space (Cmd+Shift+Space on macOS)</li>
             <li>Push-to-talk mode — hold to record</li>
-            <li>All processing happens offline after model download</li>
+            <li>Start with Groq cloud transcription, or download a model for offline use</li>
           </ul>
           <div className="actions">
             <button type="button" onClick={() => goNext(1)}>
@@ -275,9 +325,10 @@ export default function Onboarding() {
         <section>
           <h2>Download speech model</h2>
           <p className="hint">
-            Choose a model and download it before continuing. This is a one-time
-            download (~200–550 MB depending on model).
+            Download a local model for fully offline use (~200–550 MB), or add a
+            Groq API key to start immediately.
           </p>
+          {groqKeyBlock()}
           {modelDownloadBlock()}
           <div className="actions">
             <button type="button" className="secondary" onClick={goBack}>
@@ -285,9 +336,12 @@ export default function Onboarding() {
             </button>
             <button
               type="button"
-              onClick={() => goNext(3)}
-              disabled={!anyModelCached}
-              title={anyModelCached ? undefined : "Download a model first"}
+              onClick={async () => {
+                await saveGroqKey();
+                goNext(3);
+              }}
+              disabled={!canTranscribe}
+              title={canTranscribe ? undefined : "Download a model or add a Groq API key"}
             >
               Continue
             </button>
@@ -298,14 +352,15 @@ export default function Onboarding() {
       {step === 3 && (
         <section>
           <h2>Quick benchmark</h2>
-          <p>Runs a short inference test to recommend the best model tier.</p>
+          <p>Runs a short local inference test to recommend the best model tier.</p>
           {!anyModelCached && (
             <>
               <p className="warn">
-                No speech model is installed yet. Download one below or go back to
-                the download step.
+                {groqConfigured
+                  ? "Benchmark needs a local model. You can skip to Mic test and use Groq cloud transcription."
+                  : "No local model installed. Download one below or go back to add a Groq API key."}
               </p>
-              {modelDownloadBlock("Download required before benchmarking:")}
+              {modelDownloadBlock("Download a local model for benchmarking:")}
             </>
           )}
           <button type="button" onClick={runBenchmark} disabled={!anyModelCached}>
@@ -321,7 +376,7 @@ export default function Onboarding() {
             <button type="button" className="secondary" onClick={goBack}>
               Back
             </button>
-            <button type="button" onClick={() => goNext(4)} disabled={!anyModelCached}>
+            <button type="button" onClick={() => goNext(4)} disabled={!canTranscribe}>
               Continue
             </button>
           </div>
@@ -332,15 +387,16 @@ export default function Onboarding() {
         <section>
           <h2>Mic test</h2>
           <p>Say something — we&apos;ll transcribe 3 seconds of audio.</p>
-          {!anyModelCached && (
+          {!canTranscribe && (
             <>
               <p className="warn">
-                No speech model is installed yet. Download one below or go back.
+                Add a Groq API key or download a model to run the mic test.
               </p>
-              {modelDownloadBlock("Download required before mic test:")}
+              {groqKeyBlock()}
+              {modelDownloadBlock()}
             </>
           )}
-          <button type="button" onClick={runMicTest} disabled={!anyModelCached}>
+          <button type="button" onClick={runMicTest} disabled={!canTranscribe}>
             Start mic test
           </button>
           {micResult && <p className="result">{micResult}</p>}
@@ -348,7 +404,7 @@ export default function Onboarding() {
             <button type="button" className="secondary" onClick={goBack}>
               Back
             </button>
-            <button type="button" onClick={finish} disabled={!anyModelCached}>
+            <button type="button" onClick={finish} disabled={!canTranscribe}>
               Finish setup
             </button>
           </div>

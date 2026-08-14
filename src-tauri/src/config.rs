@@ -43,6 +43,9 @@ pub struct AppConfig {
     pub model_path: Option<String>,
     pub trailing_silence_ms: u64,
     pub onboarding_complete: bool,
+    /// Groq API key for cloud transcription until a local model is cached.
+    #[serde(default)]
+    pub groq_api_key: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -55,6 +58,7 @@ impl Default for AppConfig {
             model_path: None,
             trailing_silence_ms: DEFAULT_TRAILING_SILENCE_MS,
             onboarding_complete: false,
+            groq_api_key: None,
         }
     }
 }

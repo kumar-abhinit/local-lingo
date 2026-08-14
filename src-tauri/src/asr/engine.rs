@@ -1,4 +1,4 @@
-use crate::config::{ModelTier, TARGET_SAMPLE_RATE};
+use crate::config::TARGET_SAMPLE_RATE;
 use anyhow::{anyhow, Context, Result};
 use parking_lot::Mutex;
 use std::path::Path;

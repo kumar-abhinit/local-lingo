@@ -36,7 +36,7 @@ thiserror = "2"
 anyhow = "1"
 parking_lot = "0.12"
 rubato = "0.16"
-reqwest = { version = "0.12", features = ["stream"], optional = true }
+reqwest = { version = "0.12", features = ["stream", "multipart", "json"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 arboard = "3"
 

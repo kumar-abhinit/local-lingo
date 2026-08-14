@@ -181,8 +181,13 @@ button:disabled {
   border-radius: 6px;
 }
 
-.download-block button {
-  margin-top: 0.5rem;
+.panel a {
+  color: #60a5fa;
+}
+
+.panel code {
+  font-family: monospace;
+  font-size: 0.875rem;
 }
 
 .progress {
